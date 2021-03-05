@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <script src="signalr.min.js"></script>
+    <script src="jquery.min.js"></script>
+
+    <script>
+        $(document).ready(() => {
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("http://localhost:5000/myhub")
+                .withAutomaticReconnect([1000, 1500, 2000, 2500, 5000, 10000, 20000, 40000])
+                .build();
+
+            async function start() {
+                try {
+                    await connection.start();
+                } catch (error) {
+                    setTimeout(() => start(), 2000);
+                }
+            };
+            start();
+
+            function animation() {
+                state.fadeIn(2000, () => {
+                    setTimeout(() => {
+                        state.fadeOut(2000);
+                    }, 2000)
+                });
+            };
+
+            const state = $("#state");
+            connection.onreconnecting(error => {
+                state.css("background-color", "blue");
+                state.css("color", "black");
+                state.html("Bağlantı kuruluyor.");
+                animation();
+            });
+            connection.onreconnected(connectionId => {
+                state.css("background-color", "green");
+                state.css("color", "black");
+                state.html("Bağlantı kuruldu.");
+                animation();
+            });
+
+            connection.onclose(connectionId => {
+                state.css("background-color", "red");
+                state.css("color", "black");
+                state.html("Bağlantı sağlanamadı.");
+                animation();
+            });
+
+            connection.on("NewUserJoined", connectionId => {
+                state.html(`${connectionId} bağlandı`);
+                state.css("background-color", "green");
+                animation();
+            });
+            connection.on("OneUserLeaved", connectionId => {
+                state.html(`${connectionId} sistemden ayrıldı`);
+                state.css("background-color", "red");
+                animation();
+            });
+
+            connection.on("clients", dataClients => {
+                let text = "";
+                $.each(dataClients, (index, item) => {
+                    text += `<li>${item}</li>`;
+                });
+                $("#clients").html(text);
+            });
+            $("#btnSend").click(() => {
+                let message = $("#txtmessage").val();
+                connection.invoke("SendMessageAsync", message).catch(error => console.log(error));
+            });
+            connection.on("recieveMessage", message => {
+                $("#messages").append(message + "<br>")
+            });
+
+        });
+    </script>
+</head>
+
+<body>
+    <div id="state" style="display: none;"></div>
+    <input type="text" id="txtmessage">
+    <button id="btnSend">Gönder</button>
+    <div id="messages"></div>
+    <div>
+        <ul id="clients"></ul>
+    </div>
+</body>
+
+</html>
